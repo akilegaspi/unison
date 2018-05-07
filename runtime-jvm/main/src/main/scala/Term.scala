@@ -166,7 +166,8 @@ object Term {
       MatchCase(pattern, None, body)
   }
 
-  sealed abstract class F[+R]
+  sealed abstract class F0[+R]
+  sealed abstract class F[+R] extends F0[R]
 
   object F {
     case class Lam_[R](body: R) extends F[R]
@@ -188,6 +189,7 @@ object Term {
     case class Or_[R](x: R, y: R) extends F[R]
     case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
     case class Compiled_(value: Param) extends F[Nothing]
+    case class Ref_(pos: Long) extends F0[Nothing]
     // request : <f> a -> {f} a
     case class Request_ [R](id: Id, ctor: ConstructorId) extends F[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r

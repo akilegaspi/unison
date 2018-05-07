@@ -27,6 +27,7 @@ object ABT {
 
   case class AnnotatedTerm[F[+_],A](annotation: A, get: ABT[F,AnnotatedTerm[F,A]]) {
     override def toString = get.toString
+    def covary[F2[x]<:F[x]]: AnnotatedTerm[F2,A] = this.asInstanceOf[AnnotatedTerm[F2,A]]
     def map[B](f: A => B)(implicit F: Functor[F]): AnnotatedTerm[F,B] =
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)

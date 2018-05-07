@@ -2,11 +2,13 @@ package org.unisonweb
 
 import util.{GraphCodec, Sequence, Sink, Source}
 import GraphCodec._
-import Term.Term
+import Term.{Name, Term}
 import Term.F._
+
 import annotation.switch
 
 object Codecs {
+  type Term0 = org.unisonweb.ABT.Term[org.unisonweb.Term.F0]
 
   sealed trait Node {
     def unsafeAsTerm: Term = this match {
@@ -20,12 +22,12 @@ object Codecs {
   }
 
   object Node {
-    case class Term(get: org.unisonweb.Term.Term) extends Node
+    case class Term(get: Term0) extends Node
     case class Param(get: org.unisonweb.Param) extends Node
   }
 
   def encodeTerm(t: Term): Sequence[Array[Byte]] =
-    nodeGraphCodec.encode(Node.Term(t))
+    nodeGraphCodec.encode(Node.Term(t.covary[Term.F0]))
 
   def decodeTerm(bytes: Sequence[Array[Byte]]): Term =
     nodeGraphCodec.decode(bytes).unsafeAsTerm
@@ -212,6 +214,15 @@ object Codecs {
 
       def decodeTerm0: Term = decodeTerm(src.position, src.getByte)
       def decodeTerm(pos: Position, tag: Byte): Term = {
+        // just create a Term.Ref here, set it to null
+        val unnamedRef = new Ref(("v"+pos) : Name, null)
+        // first find all the refs (*not org.unisonweb.Ref)
+        // then encode all the refs to the output stream
+        // then encode the term itself (which refers to those refs)
+        //
+        // could produce a Term = ABT.AnnotatedTerm[Term.F + Ref, ...]
+        // kinda weird
+        done(pos, Node.Term(Term.Compiled(unnamedRef)))
         val t: Term = (tag: @switch) match {
           case -99 => val i = src.getVarLong; seen(i) match {
             case Some(n) => n.unsafeAsTerm
@@ -254,6 +265,7 @@ object Codecs {
           case 20 =>
             Term.Compiled(decodeParam0)
         }
+        unnamedRef.value = t
         done(pos, Node.Term(t))
         t
       }
