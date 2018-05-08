@@ -4,10 +4,9 @@ import GraphCodec._
 
 trait GraphCodec[G] {
 
-  // type K
-  // def objectIdentity(g: G): K
+  type K
 
-  def objectIdentity(g: G): Any
+  def objectIdentity(g: G): K
 
   def encode(sink: Sink, seen: G => Option[Position]): G => Unit
 
@@ -20,11 +19,10 @@ trait GraphCodec[G] {
     decode(src, _ => None, (_,_) => ())
 
   def encodeGraph(sink: Sink): G => Unit = {
-    val seen = new java.util.IdentityHashMap[Any,Long]
+    val seen = new scala.collection.mutable.HashMap[K,Long]
     encode(sink, g => {
       val id = objectIdentity(g)
-      if (seen.containsKey(id)) Some(seen.get(id))
-      else { seen.put(id, sink.position); None }
+      seen.get(id) orElse { seen += (id -> sink.position); None }
     })
   }
 

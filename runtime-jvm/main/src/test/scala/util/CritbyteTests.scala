@@ -74,6 +74,9 @@ object CritbyteTests {
         equal1(u.keys.toSet, (x.keys union y.keys).toSet)
         u.keys.foreach { k =>
           note(s"k: $k")
+          note(s"u lookup k: ${u lookup k}")
+          note(s"y lookup k: ${y lookup k}")
+          note(s"x lookup k: ${x lookup k}")
           equal1(u.lookup(k), y.lookup(k) orElse x.lookup(k))
         }
       }

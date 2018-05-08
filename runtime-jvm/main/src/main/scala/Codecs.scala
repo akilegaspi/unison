@@ -1,10 +1,10 @@
 package org.unisonweb
 
-import util.{GraphCodec, Sequence, Sink, Source}
-import GraphCodec._
-import Term.Term
-import Term.F._
+import util.{GraphCodec, Sequence, Sink, Source, Pointer}
 import annotation.switch
+import GraphCodec._
+import Term.F._
+import Term.Term
 
 object Codecs {
 
@@ -37,9 +37,11 @@ object Codecs {
     nodeGraphCodec.decode(bytes).unsafeAsParam.toValue
 
   implicit val nodeGraphCodec: GraphCodec[Node] = new GraphCodec[Node] {
+    type K = Pointer
+
     def objectIdentity(n: Node) = n match {
-      case Node.Term(t) => t
-      case Node.Param(p) => p
+      case Node.Term(t) => new Pointer(t)
+      case Node.Param(p) => new Pointer(p)
     }
     def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {
       def encodeNode(n: Node): Unit = n match {
