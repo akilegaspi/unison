@@ -8,7 +8,8 @@ object AllTests {
     DecompileTests.tests,
     UtilTests.tests,
     CompilationTests.tests,
-    StreamTests.tests
+    StreamTests.tests,
+    CodecsTests.tests
   )
 }
 

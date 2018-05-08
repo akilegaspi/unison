@@ -46,14 +46,14 @@ object Codecs {
     def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {
       def encodeNode(n: Node): Unit = n match {
         case Node.Term(t) =>
-          Term.foreachTransitiveParam(Set.empty[Param], t) { param =>
+          Term.foreachTransitiveParam(t) { param =>
             sink putByte 1 // more refs to come
             encodeParam(param)
           }
           sink putByte 0 // done writing params
           encodeTerm(t)
         case Node.Param(p) =>
-          Term.foreachTransitiveParam(Set.empty[Param], p) { param =>
+          Term.foreachTransitiveParam(p) { param =>
             sink putByte 1
             encodeParam(param)
           }

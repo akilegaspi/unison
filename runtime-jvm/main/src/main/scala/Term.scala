@@ -93,35 +93,62 @@ object Term {
    * Feels like want to do `a3` first, so dependencies of a function are
    * all already serialized before the function itself.
    */
-  def foreachTransitiveParam(seen: Set[Param], t: Term)(f: Param => Unit): Set[Param] = t.get match {
-    case ABT.Var_(_) => seen
-    case ABT.Abs_(_,t) => foreachTransitiveParam(seen, t)(f)
-    case ABT.Tm_(t) => t match {
-      case Compiled_(param) => foreachTransitiveParam(seen, param)(f)
-      case _ => t.foldLeft(seen)((seen,t) => foreachTransitiveParam(seen,t)(f))
+  @annotation.tailrec
+  def foreachTransitiveParam(seen: Set[Param],
+                             e: Either[Term, Param],
+                             remain: util.Sequence[Either[Term, Param]])
+                            (f: Param => Unit): Set[Param] = {
+    def empty = util.Sequence.empty[Either[Term, Param]]
+    e match {
+      case Left(t) =>
+        t.get match {
+          case ABT.Var_(_) => seen
+          case ABT.Abs_(_,t) => foreachTransitiveParam(seen, Left(t), remain)(f)
+          case ABT.Tm_(t) => t match {
+            case Compiled_(param) => foreachTransitiveParam(seen, Right(param), remain)(f)
+            case _ =>
+              (t.foldLeft(empty)((r, t) => r :+ Left(t)) ++ remain).uncons match {
+                case Some((e, remain)) => foreachTransitiveParam(seen, e, remain)(f)
+                case None => seen
+              }
+          }
+        }
+      case Right(p) =>
+        if (seen.contains(p)) remain.uncons match {
+          case Some((e, remain)) => foreachTransitiveParam(seen, e, remain)(f)
+          case None => seen
+        }
+        else (seen + p) match { case seen =>
+          f(p)
+          p match {
+            case lam: Value.Lambda => foreachTransitiveParam(seen, Left(lam.decompile), remain)(f)
+            case Value.Data(_, _, vs) =>
+              (vs.foldLeft(empty)((r, v) => r :+ Right(v)) ++ remain).uncons match {
+                case Some((e, remain)) => foreachTransitiveParam(seen, e, remain)(f)
+                case None => seen
+              }
+            case Value.EffectPure(u, b) => foreachTransitiveParam(seen, Right(b), remain)(f)
+            case Value.EffectBind(id,cid, args, k) =>
+              (args.foldLeft(empty)((r, a) => r :+ Right(a)) ++ remain).uncons match {
+                case Some((e, remain)) => foreachTransitiveParam(seen, e, remain)(f)
+                case None => seen
+              }
+            case Value.Unboxed(_, _) | _ : UnboxedType => remain.uncons match {
+              case Some((e, remain)) => foreachTransitiveParam(seen, e, remain)(f)
+              case None => seen
+            }
+            case r: Ref => foreachTransitiveParam(seen, Right(r.value), remain)(f)
+            case e: Builtins.External => foreachTransitiveParam(seen, Left(e.decompile), remain)(f)
+            case t => sys.error(s"unexpected Param type ${t.getClass}")
+        }}
     }
   }
 
-  def foreachTransitiveParam(seen: Set[Param], p: Param)(f: Param => Unit): Set[Param] = {
-    if (seen.contains(p)) seen
-    else (seen + p) match { case seen =>
-      f(p)
-      p match {
-        case lam: Value.Lambda => foreachTransitiveParam(seen, lam.decompile)(f)
-        case Value.Data(_, _, vs) =>
-          vs.foldLeft(seen)(foreachTransitiveParam(_,_)(f))
-        case Value.EffectPure(u, b) => foreachTransitiveParam(seen, b)(f)
-        case Value.EffectBind(id,cid, args, k) =>
-          foreachTransitiveParam(
-            args.foldLeft(seen)(foreachTransitiveParam(_,_)(f)),
-            k)(f)
-        case Value.Unboxed(_, _) | _ : UnboxedType => seen
-        case r: Ref => foreachTransitiveParam(seen, r.value)(f)
-        case e: Builtins.External => foreachTransitiveParam(seen, e.decompile)(f)
-        case t =>
-          sys.error(s"unexpected Param type ${t.getClass} in encodeParam")
-    }}
-  }
+  def foreachTransitiveParam(e: Term)(f: Param => Unit): Set[Param] =
+    foreachTransitiveParam(Set.empty, Left(e), util.Sequence.empty)(f)
+
+  def foreachTransitiveParam(p: Param)(f: Param => Unit): Set[Param] =
+    foreachTransitiveParam(Set.empty, Right(p), util.Sequence.empty)(f)
 
   /**
    * Removes all `Compiled` nodes from `t` by expanding their definitions and
